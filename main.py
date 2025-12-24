@@ -6,8 +6,19 @@ Final Project JCAI 001
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.api import health, products, rag
 from app.database.init_db import init_database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    # Startup
+    await init_database()
+    yield
+    # Shutdown (if needed)
+
 
 app = FastAPI(
     title="CAHYO Intelligence - Olist E-Commerce RAG System",
@@ -15,12 +26,13 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - Note: For production, restrict to specific domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # TODO: In production, replace with specific domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,12 +42,6 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(products.router, prefix="/api/products", tags=["Products"])
 app.include_router(rag.router, prefix="/api/rag", tags=["RAG"])
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    await init_database()
 
 
 @app.get("/")

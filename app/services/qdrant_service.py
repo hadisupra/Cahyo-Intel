@@ -74,18 +74,22 @@ class QdrantService:
         
         try:
             from qdrant_client.models import PointStruct
+            import uuid
             
             points = []
-            for idx, doc in enumerate(documents):
+            for doc in documents:
                 # Create text for embedding
                 text = f"{doc.get('product_name', '')} {doc.get('product_description', '')} {doc.get('product_category', '')}"
                 
                 # Generate embedding
                 embedding = self.encoder.encode(text).tolist()
                 
+                # Use product_id or generate UUID for unique point ID
+                point_id = hash(doc.get('product_id', str(uuid.uuid4())))
+                
                 # Create point
                 point = PointStruct(
-                    id=idx,
+                    id=point_id,
                     vector=embedding,
                     payload=doc
                 )
@@ -165,10 +169,16 @@ class QdrantService:
         
         try:
             collection_info = self.client.get_collection(self.collection_name)
+            # Safely extract vector count
+            try:
+                vectors_count = collection_info.vectors_count
+            except AttributeError:
+                vectors_count = 0
+            
             return {
                 "mode": "qdrant",
                 "name": self.collection_name,
-                "vectors_count": collection_info.vectors_count if hasattr(collection_info, 'vectors_count') else 0,
+                "vectors_count": vectors_count,
             }
         except Exception as e:
             logger.error(f"Error getting collection info: {e}")
