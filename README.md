@@ -99,6 +99,8 @@ Cahyo-Intel/
 
 ## Running the Application
 
+### Option 1: Running Locally
+
 1. **Start the FastAPI server**
    ```bash
    python main.py
@@ -113,6 +115,34 @@ Cahyo-Intel/
    - API Documentation (Swagger UI): http://localhost:8000/docs
    - Alternative API Docs (ReDoc): http://localhost:8000/redoc
    - Root endpoint: http://localhost:8000/
+
+### Option 2: Running with Docker Compose (Recommended)
+
+This method automatically sets up both the application and Qdrant vector database.
+
+1. **Build and start services**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Access the application**
+   - API Documentation: http://localhost:8000/docs
+   - Qdrant Dashboard: http://localhost:6333/dashboard
+
+3. **Stop services**
+   ```bash
+   docker-compose down
+   ```
+
+### Option 3: Running Only Qdrant with Docker
+
+If you want to run Qdrant separately:
+
+```bash
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+Then start the FastAPI application locally as shown in Option 1.
 
 ## API Endpoints
 
@@ -163,6 +193,16 @@ curl "http://localhost:8000/api/products/"
 curl "http://localhost:8000/api/products/?category=Electronics"
 ```
 
+### Running the Test Suite
+
+The project includes a comprehensive test suite:
+
+```bash
+python test_api.py
+```
+
+This will test all endpoints and display formatted responses.
+
 ## Database Schema
 
 ### Products Table
@@ -196,6 +236,16 @@ The RAG (Retrieval-Augmented Generation) system works as follows:
 2. **Storage**: Embeddings are stored in Qdrant vector database
 3. **Retrieval**: User queries are converted to embeddings and similar products are found
 4. **Generation**: Retrieved products are formatted into natural language responses
+
+### Fallback Mode
+
+The system includes a **fallback mode** that works even when Qdrant is not available:
+- Uses simple keyword-based search instead of semantic search
+- Stores product data in memory
+- Provides basic but functional product recommendations
+- No external dependencies required
+
+This makes the system robust and usable in any environment!
 
 ## Development Notes
 
