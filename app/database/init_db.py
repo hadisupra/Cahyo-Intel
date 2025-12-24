@@ -2,6 +2,7 @@
 from app.database.database import create_tables, AsyncSessionLocal
 from app.database.models import Product, Order, Customer
 from datetime import datetime, timedelta
+from sqlalchemy import select, func
 import random
 
 
@@ -12,7 +13,7 @@ async def init_database():
     
     # Check if data already exists
     async with AsyncSessionLocal() as session:
-        result = await session.execute("SELECT COUNT(*) FROM products")
+        result = await session.execute(select(func.count()).select_from(Product))
         count = result.scalar()
         
         if count > 0:

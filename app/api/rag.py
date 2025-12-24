@@ -21,16 +21,12 @@ async def rag_query(query: RAGQuery, db: AsyncSession = Depends(get_db)):
     
     This endpoint uses semantic search to find relevant products and 
     generates a natural language response based on the query.
+    
+    Note: If Qdrant is not available, the system will use a simple keyword-based
+    search as a fallback.
     """
     try:
-        # Ensure Qdrant is initialized
-        if not qdrant_service.is_initialized:
-            qdrant_service.initialize()
-            
-            # Index products if Qdrant was just initialized
-            await index_products_endpoint(db)
-        
-        # Process RAG query
+        # Process RAG query (will use fallback mode if not initialized)
         result = await rag_service.query(query.query, query.top_k)
         
         return RAGResponse(**result)
@@ -46,9 +42,12 @@ async def index_products_endpoint(db: AsyncSession = Depends(get_db)):
     
     This endpoint should be called when new products are added to ensure
     they are searchable via the RAG system.
+    
+    Note: This requires Qdrant to be running. If Qdrant is not available,
+    products will be stored in fallback in-memory storage for keyword search.
     """
     try:
-        # Ensure Qdrant is initialized
+        # Initialize Qdrant if not already done (may fail if Qdrant not running)
         if not qdrant_service.is_initialized:
             qdrant_service.initialize()
         
@@ -72,10 +71,13 @@ async def index_products_endpoint(db: AsyncSession = Depends(get_db)):
         # Index products
         await rag_service.index_products(product_dicts)
         
+        mode = "Qdrant" if qdrant_service.is_initialized else "fallback in-memory storage"
+        
         return {
             "status": "success",
-            "message": f"Indexed {len(product_dicts)} products",
-            "count": len(product_dicts)
+            "message": f"Indexed {len(product_dicts)} products in {mode}",
+            "count": len(product_dicts),
+            "mode": mode
         }
     except Exception as e:
         logger.error(f"Error indexing products: {e}")
@@ -88,9 +90,10 @@ async def rag_status():
     try:
         if not qdrant_service.is_initialized:
             return {
-                "status": "not_initialized",
+                "status": "fallback_mode",
                 "qdrant_initialized": False,
-                "message": "Qdrant service is not initialized. This may be because Qdrant is not running."
+                "mode": "keyword_search",
+                "message": "RAG system is running in fallback mode with keyword search. Qdrant is not available."
             }
         
         collection_info = qdrant_service.get_collection_info()
@@ -98,8 +101,9 @@ async def rag_status():
         return {
             "status": "operational",
             "qdrant_initialized": True,
+            "mode": "semantic_search",
             "collection_info": collection_info,
-            "message": "RAG system is operational"
+            "message": "RAG system is operational with semantic search"
         }
     except Exception as e:
         logger.error(f"Error getting RAG status: {e}")

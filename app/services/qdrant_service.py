@@ -1,7 +1,4 @@
 """Qdrant vector database service"""
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
-from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Optional
 from app.config import settings
 import logging
@@ -17,10 +14,16 @@ class QdrantService:
         self.encoder = None
         self.collection_name = settings.qdrant_collection_name
         self.is_initialized = False
+        self.fallback_data = []  # Fallback in-memory storage
     
     def initialize(self):
         """Initialize Qdrant client and encoder"""
         try:
+            # Try to import and initialize Qdrant
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, VectorParams
+            from sentence_transformers import SentenceTransformer
+            
             # Initialize Qdrant client
             self.client = QdrantClient(
                 host=settings.qdrant_host,
@@ -37,12 +40,14 @@ class QdrantService:
             self.is_initialized = True
             logger.info("Qdrant service initialized successfully")
         except Exception as e:
-            logger.warning(f"Could not initialize Qdrant: {e}. Running in fallback mode.")
+            logger.warning(f"Could not initialize Qdrant: {e}. Running in fallback mode with simple keyword search.")
             self.is_initialized = False
     
     def _create_collection_if_not_exists(self):
         """Create Qdrant collection if it doesn't exist"""
         try:
+            from qdrant_client.models import Distance, VectorParams
+            
             collections = self.client.get_collections().collections
             collection_names = [col.name for col in collections]
             
@@ -60,12 +65,16 @@ class QdrantService:
             raise
     
     def add_documents(self, documents: List[Dict]):
-        """Add documents to Qdrant collection"""
+        """Add documents to Qdrant collection or fallback storage"""
         if not self.is_initialized:
-            logger.warning("Qdrant not initialized, skipping document addition")
+            # Store in fallback in-memory storage
+            self.fallback_data = documents
+            logger.info(f"Stored {len(documents)} documents in fallback storage")
             return
         
         try:
+            from qdrant_client.models import PointStruct
+            
             points = []
             for idx, doc in enumerate(documents):
                 # Create text for embedding
@@ -94,8 +103,8 @@ class QdrantService:
     def search(self, query: str, top_k: int = 5) -> List[Dict]:
         """Search for similar documents"""
         if not self.is_initialized:
-            logger.warning("Qdrant not initialized, returning empty results")
-            return []
+            # Use simple keyword search in fallback mode
+            return self._fallback_search(query, top_k)
         
         try:
             # Generate query embedding
@@ -118,17 +127,47 @@ class QdrantService:
             return documents
         except Exception as e:
             logger.error(f"Error searching documents: {e}")
+            return self._fallback_search(query, top_k)
+    
+    def _fallback_search(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Simple keyword-based search for fallback mode"""
+        if not self.fallback_data:
             return []
+        
+        query_lower = query.lower()
+        query_words = set(query_lower.split())
+        
+        # Score each document based on keyword matches
+        scored_docs = []
+        for doc in self.fallback_data:
+            text = f"{doc.get('product_name', '')} {doc.get('product_description', '')} {doc.get('product_category', '')}".lower()
+            
+            # Count matching words
+            matches = sum(1 for word in query_words if word in text)
+            
+            if matches > 0:
+                doc_copy = doc.copy()
+                # Normalize score to 0-1 range
+                doc_copy['similarity_score'] = min(matches / len(query_words), 1.0)
+                scored_docs.append(doc_copy)
+        
+        # Sort by score and return top_k
+        scored_docs.sort(key=lambda x: x['similarity_score'], reverse=True)
+        return scored_docs[:top_k]
     
     def get_collection_info(self) -> Optional[Dict]:
         """Get information about the collection"""
         if not self.is_initialized:
-            return None
+            return {
+                "mode": "fallback",
+                "documents_count": len(self.fallback_data)
+            }
         
         try:
             collection_info = self.client.get_collection(self.collection_name)
             return {
-                "name": collection_info.config.params.vectors.size if collection_info.config.params.vectors else 0,
+                "mode": "qdrant",
+                "name": self.collection_name,
                 "vectors_count": collection_info.vectors_count if hasattr(collection_info, 'vectors_count') else 0,
             }
         except Exception as e:
