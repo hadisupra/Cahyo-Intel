@@ -7,8 +7,8 @@ except Exception:
     tiktoken = None
 
 DEFAULT_USD_TO_IDR = float(os.getenv("USD_TO_IDR", "16000"))
-INPUT_PRICE_PER_1K_USD = float(os.getenv("INPUT_PRICE_PER_1K_USD", "0"))
-OUTPUT_PRICE_PER_1K_USD = float(os.getenv("OUTPUT_PRICE_PER_1K_USD", "0"))
+INPUT_PRICE_PER_1K_USD = float(os.getenv("INPUT_PRICE_PER_1K_USD", "0.0005"))
+OUTPUT_PRICE_PER_1K_USD = float(os.getenv("OUTPUT_PRICE_PER_1K_USD", "0.0015"))
 
 
 def _count_tokens(text: str, model_hint: str = "gpt-4o-mini") -> int:
