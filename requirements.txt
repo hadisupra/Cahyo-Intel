@@ -19,5 +19,3 @@ numpy
 requests
 SQLAlchemy
 streamlit
-altair>=4,<5
-imghdr-py
